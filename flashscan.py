@@ -137,7 +137,6 @@ class Args():
 		self.parser.add_argument("--no-ping", "-n",  dest="checkping", help="Scan for ports without actually testing if the host is up or not.")
 		self.parser.add_argument("--verbose", "-v", help="Verbose output.", action="store_true")
 		self.parser.add_argument("--detailed", "-d", help="Detailed output. Displaying more information about each service. Also enumerate for directories (if any webserver found)", action="store_true")
-		self.parser.add_argument("--wordlist", "-w", help="Provide a wordlist for directory enumeration. Should be used along with -d flag.")
 	def get_args(self):
 		return self.parser.parse_args()
 
@@ -221,7 +220,6 @@ if __name__ == "__main__":
 	threads = args.threads
 	verbose = args.verbose
 	detailed = args.detailed
-	wordlist = args.wordlist
 	checkPing = args.checkping
 
 	ports, 	tPorts = setPorts(port_range)
