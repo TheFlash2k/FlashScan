@@ -1,5 +1,4 @@
 import socket
-import threading
 from colorama import init, Fore
 from threading import Thread, Lock
 from queue import Queue
@@ -27,9 +26,9 @@ class PortScanner():
 		self.print_lock = Lock()
 		self.Banners = dict()
 		self.open_ports = list()
+		self.closed = True
 
 	def extractBanner(self, port):
-		# with self.print_lock:
 		s = socket.socket()
 		try:
 			s.connect((self.ip, port))
@@ -37,16 +36,21 @@ class PortScanner():
 				req = "GET / HTTP/1.1 \r\n"
 				s.send(req.encode())
 				banner = s.recv(1024).decode()
-				print(f"Banner is: {banner}")
+				banner = banner[banner.find("Server"):]
+				banner =  banner[:banner.find("\n")].split(': ')[1]
+				banner = f"[{GREEN}+{RESET}] Port {port} : " + banner
 			else:
 				banner = s.recv(1024).decode()
 				if banner == "":
-					banner = f"[{RED}-{RESET}] Port {port} : No Banner Found!"
+					banner = f"[{RED}-{RESET}] Port {port} : No Banner Found! :("
 				else:
-					banner = f"[{GREEN}+{RESET}] Port {port} : " + banner
-				print(f"Banner is: {banner}")
+					banner = f"[{GREEN}+{RESET}] Port {port} : " + banner.strip()
+			with self.print_lock:
+				print(banner)
 		except  KeyboardInterrupt:
 			pass
+		except:
+			print(f"[{RED}-{RESET}] Port {port} : Unable to grab banner. :(")
 
 		s.close()
 
@@ -71,6 +75,7 @@ class PortScanner():
 		else:
 			with self.print_lock:
 				self.open_ports.append(port)
+				scanner.closed = False
 				print(f"[{GREEN}+{RESET}] PORT {port} is {GREEN}open{RESET}!" + " " * 10)
 				ret = True
 		finally:
@@ -86,14 +91,13 @@ class PortScanner():
 				exit(1)
 			except:
 				pass
-
 	def init(self):
 		for thread in range(self.threads):
 			thread = Thread(target=self.scanWorker)
 			thread.daemon = True
 			thread.start()
-
-		for worker in ports:
+		
+		for worker in self.ports:
 			self.q.put(worker)
 
 		self.q.join()
@@ -190,8 +194,12 @@ if __name__ == "__main__":
 	scanner = PortScanner(host, threads=threads, ports=ports)
 	scanner.init()
 
+	if scanner.closed:
+		for port in scanner.ports:
+			print(f"[{RED}-{RESET}] PORT {port} is {RED}closed{RESET}!" + " " * 10)
+
 	print("=" * 50)
-	if detailed:
+	if detailed and  not scanner.closed:
 		print(f"[{BLUE}*{RESET}] Port Scan Finished successfully")
 		print(f"[{YELLOW}&{RESET}] Grabbing Banners for all the open ports....")
 		print("=" * 50)
