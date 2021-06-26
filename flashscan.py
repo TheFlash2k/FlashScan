@@ -20,6 +20,7 @@ CYAN = Fore.CYAN
 protocols = {1 : "tcpmux", 5 : "rje", 7 : "echo", 9 : "discard", 11 : "systat", 13 : "daytime", 17 : "qotd", 18 : "msp", 19 : "chargen", 20 : "ftp-data", 21 : "ftp", 22 : "ssh", 23 : "telnet", 25 : "smtp", 37 : "time", 39 : "rlp", 42 : "nameserver", 43 : "nicname", 49 : "tacacs", 50 : "re-mail-ck", 53 : "domain", 63 : "whois++", 67 : "bootps", 68 : "bootpc", 69 : "tftp", 70 : "gopher", 71 : "netrjs-1", 72 : "netrjs-2", 73 : "netrjs-3", 73 : "netrjs-4", 79 : "finger", 80 : "http", 88 : "kerberos", 95 : "supdup", 101 : "hostname", 102 : "iso-tsap", 105 : "csnet-ns", 107 : "rtelnet", 109 : "pop2", 110 : "pop3", 111 : "sunrpc", 113 : "auth", 115 : "sftp", 117 : "uucp-path", 119 : "nntp", 123 : "ntp", 137 : "netbios-ns", 138 : "netbios-dgm", 139 : "netbios-ssn", 143 : "imap", 161 : "snmp", 162 : "snmptrap", 163 : "cmip-man", 164 : "cmip-agent", 174 : "mailq", 177 : "xdmcp", 178 : "nextstep", 179 : "bgp", 191 : "prospero", 194 : "irc", 199 : "smux", 201 : "at-rtmp", 202 : "at-nbp", 204 : "at-echo", 206 : "at-zis", 209 : "qmtp", 210 : "z39.50", 213 : "ipx", 220 : "imap3", 245 : "link", 347 : "fatserv", 363 : "rsvp_tunnel", 369 : "rpc2portmap", 370 : "codaauth2", 372 : "ulistproc", 389 : "ldap", 427 : "svrloc", 434 : "mobileip-agent", 435 : "mobilip-mn", 443 : "https", 444 : "snpp", 445 : "microsoft-ds", 464 : "kpasswd", 468 : "photuris", 487 : "saft", 488 : "gss-http", 496 : "pim-rp-disc", 500 : "isakmp", 535 : "iiop", 538 : "gdomap", 546 : "dhcpv6-client", 547 : "dhcpv6-server", 554 : "rtsp", 563 : "nntps", 565 : "whoami", 587 : "submission", 610 : "npmp-local", 611 : "npmp-gui", 612 : "hmmp-ind", 631 : "ipp", 636 : "ldaps", 674 : "acap", 694 : "ha-cluster", 749 : "kerberos-adm", 750 : "kerberos-iv", 765 : "webster", 767 : "phonebook", 873 : "rsync", 992 : "telnets", 993 : "imaps", 994 : "ircs", 995 : "pop3s" }
 ## Ports that  do not respond to banner grabbing.
 no_enum_ports = [389, 445,  139]
+explicit_ports = list()
 
 class PortScanner():
 	def __init__(self, ip, ports, threads=200, verbose=False):
@@ -38,7 +39,7 @@ class PortScanner():
 	def extractBanner(self, port):
 		s = socket.socket()
 		if port in no_enum_ports:
-			print(f"[{RED}-{RESET}] Port {RED}{port}{RESET} : {BLUE}{protocols[port]}{RESET} : Unable to grab banner. :(")
+			print(f"[{RED}-{RESET}] Port {RED}{port}{RESET} : {CYAN}{protocols[port]}{RESET} : Unable to grab banner. :(")
 			return
 		try:
 			s.connect((self.ip, port))
@@ -70,7 +71,7 @@ class PortScanner():
 			self.qPorts.task_done()
 
 	def threadBanners(self):
-		for th in range(len(self.open_ports)):
+		for th in range(self.threads):
 			th = Thread(target=self.getBanners)
 			th.daemon = True
 			th.start()
@@ -91,19 +92,19 @@ class PortScanner():
 		except:
 			
 			with self.print_lock:
-				if self.verbose:
+				if self.verbose or port in explicit_ports:
 					print(f"[{RED}-{RESET}] PORT {port} is {RED}closed{RESET}!" + " " * 10)
 				pass
 		else:
 			with self.print_lock:
-				self.open_ports.append(port)
-				scanner.closed = False
 				service = ""
 				try:
 					service = protocols[port]
 				except:
 					service = "- UNIDENTIFIED -"
 				print(f"[{GREEN}+{RESET}] PORT {port} is {GREEN}open{RESET}! Service running :  {CYAN}{service}{RESET}")
+				self.open_ports.append(port)
+				scanner.closed = False
 				ret = True
 		finally:
 			s.close()
@@ -136,22 +137,24 @@ class Args():
 		self.parser.add_argument("--threads", "-t", default=200,  type=int, help="Number of threads that will be used.")
 		self.parser.add_argument("--no-ping", "-n",  dest="checkping", help="Scan for ports without actually testing if the host is up or not.")
 		self.parser.add_argument("--verbose", "-v", help="Verbose output.", action="store_true")
-		self.parser.add_argument("--detailed", "-d", help="Detailed output. Displaying more information about each service. Also enumerate for directories (if any webserver found)", action="store_true")
+		self.parser.add_argument("--detailed", "-d", help="Detailed output. Displaying more information about each service", action="store_true")
 	def get_args(self):
 		return self.parser.parse_args()
 
 def getBanner():
 	return f"""
-{YELLOW}           ,/{RESET}  
-{YELLOW}         ,'/{RESET}     {RED}_____ _           _     {YELLOW}____{RESET}
-{YELLOW}       ,' /{RESET}     {RED}|  ___| | __ _ ___| |__ {YELLOW}/ ___|  ___ __ _ _ __{RESET}
-{YELLOW}     ,'  /_____,{RESET}{RED}| |_  | |/ _` / __| '_ \\{YELLOW} ___ \\ / __/ _` | '_ \\{RESET}
-{YELLOW}   .'____    ,' {RESET}{RED}|  _| | | (_| \\__ \\ | |{YELLOW} |___) | (_| (_| | | | |{RESET}
-{YELLOW}        /  ,'{RESET}   {RED}|_|   |_|\\__,_|___/_| |_|{YELLOW}____/ \\___\\__,_|_| |_|{RESET}
-{YELLOW}       / ,'{RESET}                           A Python3 based Multithreaded Port Scanner
-{YELLOW}      /,'{RESET}                             by @{YELLOW}The{RED}Flash{GRAY}2K.{RESET}
-{YELLOW}     /'{RESET}
+==================================================
+---- OS LAB PROJECT ----
+
+PYTHON BASED MULTITHREADED PORT SCANNER
+
+190770 - Mahnam Nasir
+190776 - Tooba Saleem
+190787 - Amal Abrar
+190792 - Ali Taqi Wajid
+
 =================================================="""
+
 
 def checkHostStatus(ip):
 	## Limiting these import to this function
@@ -194,7 +197,7 @@ def setPorts(ports):
 		start_port, end_port = port_range.split("-")
 		start_port, end_port = int(start_port), int(end_port)
 
-		ports = [ p for p in range(start_port, end_port)]
+		ports = [ p for p in range(start_port, end_port  + 1)]
 		tLen = end_port - start_port
 
 	elif "," in ports:
@@ -202,6 +205,7 @@ def setPorts(ports):
 		# Converting  the list to intt:
 		for i in range(len(ports)):
 			ports[i] = int(ports[i])
+			explicit_ports.append(ports[i])
 		tLen = len(ports)
 	else:
 		ports = [int(ports)]
