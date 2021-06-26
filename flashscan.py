@@ -143,16 +143,15 @@ class Args():
 
 def getBanner():
 	return f"""
-==================================================
----- OS LAB PROJECT ----
-
-PYTHON BASED MULTITHREADED PORT SCANNER
-
-190770 - Mahnam Nasir
-190776 - Tooba Saleem
-190787 - Amal Abrar
-190792 - Ali Taqi Wajid
-
+{YELLOW}           ,/{RESET}  
+{YELLOW}         ,'/{RESET}     {RED}_____ _           _     {YELLOW}____{RESET}
+{YELLOW}       ,' /{RESET}     {RED}|  ___| | __ _ ___| |__ {YELLOW}/ ___|  ___ __ _ _ __{RESET}
+{YELLOW}     ,'  /_____,{RESET}{RED}| |_  | |/ _` / __| '_ \\{YELLOW} ___ \\ / __/ _` | '_ \\{RESET}
+{YELLOW}   .'____    ,' {RESET}{RED}|  _| | | (_| \\__ \\ | |{YELLOW} |___) | (_| (_| | | | |{RESET}
+{YELLOW}        /  ,'{RESET}   {RED}|_|   |_|\\__,_|___/_| |_|{YELLOW}____/ \\___\\__,_|_| |_|{RESET}
+{YELLOW}       / ,'{RESET}                           A Python3 based Multithreaded Port Scanner
+{YELLOW}      /,'{RESET}                             by @{YELLOW}The{RED}Flash{GRAY}2K.{RESET}
+{YELLOW}     /'{RESET}
 =================================================="""
 
 
