@@ -13,7 +13,13 @@ YELLOW =  Fore.YELLOW
 RESET = Fore.RESET
 BLUE = Fore.BLUE
 GRAY = Fore.LIGHTBLACK_EX
+CYAN = Fore.CYAN
 ############################
+
+# A dictionary that will contain all the common ports and their
+protocols = {1 : "tcpmux", 5 : "rje", 7 : "echo", 9 : "discard", 11 : "systat", 13 : "daytime", 17 : "qotd", 18 : "msp", 19 : "chargen", 20 : "ftp-data", 21 : "ftp", 22 : "ssh", 23 : "telnet", 25 : "smtp", 37 : "time", 39 : "rlp", 42 : "nameserver", 43 : "nicname", 49 : "tacacs", 50 : "re-mail-ck", 53 : "domain", 63 : "whois++", 67 : "bootps", 68 : "bootpc", 69 : "tftp", 70 : "gopher", 71 : "netrjs-1", 72 : "netrjs-2", 73 : "netrjs-3", 73 : "netrjs-4", 79 : "finger", 80 : "http", 88 : "kerberos", 95 : "supdup", 101 : "hostname", 102 : "iso-tsap", 105 : "csnet-ns", 107 : "rtelnet", 109 : "pop2", 110 : "pop3", 111 : "sunrpc", 113 : "auth", 115 : "sftp", 117 : "uucp-path", 119 : "nntp", 123 : "ntp", 137 : "netbios-ns", 138 : "netbios-dgm", 139 : "netbios-ssn", 143 : "imap", 161 : "snmp", 162 : "snmptrap", 163 : "cmip-man", 164 : "cmip-agent", 174 : "mailq", 177 : "xdmcp", 178 : "nextstep", 179 : "bgp", 191 : "prospero", 194 : "irc", 199 : "smux", 201 : "at-rtmp", 202 : "at-nbp", 204 : "at-echo", 206 : "at-zis", 209 : "qmtp", 210 : "z39.50", 213 : "ipx", 220 : "imap3", 245 : "link", 347 : "fatserv", 363 : "rsvp_tunnel", 369 : "rpc2portmap", 370 : "codaauth2", 372 : "ulistproc", 389 : "ldap", 427 : "svrloc", 434 : "mobileip-agent", 435 : "mobilip-mn", 443 : "https", 444 : "snpp", 445 : "microsoft-ds", 464 : "kpasswd", 468 : "photuris", 487 : "saft", 488 : "gss-http", 496 : "pim-rp-disc", 500 : "isakmp", 535 : "iiop", 538 : "gdomap", 546 : "dhcpv6-client", 547 : "dhcpv6-server", 554 : "rtsp", 563 : "nntps", 565 : "whoami", 587 : "submission", 610 : "npmp-local", 611 : "npmp-gui", 612 : "hmmp-ind", 631 : "ipp", 636 : "ldaps", 674 : "acap", 694 : "ha-cluster", 749 : "kerberos-adm", 750 : "kerberos-iv", 765 : "webster", 767 : "phonebook", 873 : "rsync", 992 : "telnets", 993 : "imaps", 994 : "ircs", 995 : "pop3s" }
+## Ports that  do not respond to banner grabbing.
+no_enum_ports = [389, 445,  139]
 
 class PortScanner():
 	def __init__(self, ip, ports, threads=200, verbose=False):
@@ -23,6 +29,7 @@ class PortScanner():
 		self.ports = ports
 		## Creating variables
 		self.q = Queue() # This will hold the ports
+		self.qPorts = Queue()
 		self.print_lock = Lock()
 		self.Banners = dict()
 		self.open_ports = list()
@@ -30,6 +37,9 @@ class PortScanner():
 
 	def extractBanner(self, port):
 		s = socket.socket()
+		if port in no_enum_ports:
+			print(f"[{RED}-{RESET}] Port {RED}{port}{RESET} : {BLUE}{protocols[port]}{RESET} : Unable to grab banner. :(")
+			return
 		try:
 			s.connect((self.ip, port))
 			if port == 80 or port == 443 or port == 8080:
@@ -38,13 +48,13 @@ class PortScanner():
 				banner = s.recv(1024).decode()
 				banner = banner[banner.find("Server"):]
 				banner =  banner[:banner.find("\n")].split(': ')[1]
-				banner = f"[{GREEN}+{RESET}] Port {port} : " + banner
+				banner = f"[{GREEN}+{RESET}] Port {GREEN}{port}{RESET} : {CYAN}{protocols[port]}{RESET} : " + banner
 			else:
 				banner = s.recv(1024).decode()
 				if banner == "":
 					banner = f"[{RED}-{RESET}] Port {port} : No Banner Found! :("
 				else:
-					banner = f"[{GREEN}+{RESET}] Port {port} : " + banner.strip()
+					banner = f"[{GREEN}+{RESET}] Port {GREEN}{port}{RESET} : {CYAN}{protocols[port]}{RESET} : " + banner.strip()
 			with self.print_lock:
 				print(banner)
 		except  KeyboardInterrupt:
@@ -53,10 +63,22 @@ class PortScanner():
 			print(f"[{RED}-{RESET}] Port {port} : Unable to grab banner. :(")
 
 		s.close()
-
 	def getBanners(self):
-		for port in self.open_ports:
+		while True:
+			port = self.qPorts.get()
 			self.extractBanner(port)
+			self.qPorts.task_done()
+
+	def threadBanners(self):
+		for th in range(len(self.open_ports)):
+			th = Thread(target=self.getBanners)
+			th.daemon = True
+			th.start()
+		
+		for port in self.open_ports:
+			self.qPorts.put(port)
+		
+		self.qPorts.join()
 
 	def isOpen(self, port):
 		addr = (self.ip, port)
@@ -76,7 +98,12 @@ class PortScanner():
 			with self.print_lock:
 				self.open_ports.append(port)
 				scanner.closed = False
-				print(f"[{GREEN}+{RESET}] PORT {port} is {GREEN}open{RESET}!" + " " * 10)
+				service = ""
+				try:
+					service = protocols[port]
+				except:
+					service = "- UNIDENTIFIED -"
+				print(f"[{GREEN}+{RESET}] PORT {port} is {GREEN}open{RESET}! Service running :  {CYAN}{service}{RESET}")
 				ret = True
 		finally:
 			s.close()
@@ -114,6 +141,19 @@ class Args():
 	def get_args(self):
 		return self.parser.parse_args()
 
+def getBanner():
+	return f"""
+{YELLOW}           ,/{RESET}  
+{YELLOW}         ,'/{RESET}     {RED}_____ _           _     {YELLOW}____{RESET}
+{YELLOW}       ,' /{RESET}     {RED}|  ___| | __ _ ___| |__ {YELLOW}/ ___|  ___ __ _ _ __{RESET}
+{YELLOW}     ,'  /_____,{RESET}{RED}| |_  | |/ _` / __| '_ \\{YELLOW} ___ \\ / __/ _` | '_ \\{RESET}
+{YELLOW}   .'____    ,' {RESET}{RED}|  _| | | (_| \\__ \\ | |{YELLOW} |___) | (_| (_| | | | |{RESET}
+{YELLOW}        /  ,'{RESET}   {RED}|_|   |_|\\__,_|___/_| |_|{YELLOW}____/ \\___\\__,_|_| |_|{RESET}
+{YELLOW}       / ,'{RESET}                           A Python3 based Multithreaded Port Scanner
+{YELLOW}      /,'{RESET}                             by @{YELLOW}The{RED}Flash{GRAY}2K.{RESET}
+{YELLOW}     /'{RESET}
+=================================================="""
+
 def checkHostStatus(ip):
 	## Limiting these import to this function
 	import platform
@@ -149,7 +189,6 @@ def checkHostStatus(ip):
 	if err in data:
 		return False
 	return  True
-
 def setPorts(ports):
 	tLen = 1
 	if "-" in ports:
@@ -172,6 +211,8 @@ def setPorts(ports):
 
 if __name__ == "__main__":
 	
+	print(getBanner())
+
 	ArgHandler = Args()
 	args = ArgHandler.get_args()
 
@@ -203,7 +244,7 @@ if __name__ == "__main__":
 		print(f"[{BLUE}*{RESET}] Port Scan Finished successfully")
 		print(f"[{YELLOW}&{RESET}] Grabbing Banners for all the open ports....")
 		print("=" * 50)
-		scanner.getBanners()
+		scanner.threadBanners()
 		print("=" * 50)
 	
 	print(f"[{GREEN}+{RESET}] Scan of {YELLOW}{tPorts}{RESET} ports done!")
