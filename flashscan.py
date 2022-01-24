@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+
 import socket
 from colorama import init, Fore
 from threading import Thread, Lock
