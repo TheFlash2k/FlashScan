@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 import socket
 from colorama import init, Fore
 from threading import Thread, Lock
@@ -123,22 +122,28 @@ class PortScanner():
 			except:
 				pass
 	def init(self):
-		for thread in range(self.threads):
-			thread = Thread(target=self.scanWorker)
-			thread.daemon = True
-			thread.start()
-		
-		for worker in self.ports:
-			self.q.put(worker)
+		try:
+			for thread in range(self.threads):
+				thread = Thread(target=self.scanWorker)
+				thread.daemon = True
+				thread.start()
+			
+			for worker in self.ports:
+				self.q.put(worker)
 
-		self.q.join()
+			self.q.join()
+		except KeyboardInterrupt:
+			print(f"\r[{RED}-{RESET}] {RED}CTRL{RESET} + {RED}C{RESET}!", end='')
+			print(" " * 50)
+			exit(1)
+
 class Args():
 	def __init__(self):
 		self.parser = argparse.ArgumentParser(description="FLASHSCAN - A Multithreaded Port Scanner")
 		self.parser.add_argument("host", help="Host to scan.")
 		self.parser.add_argument("--ports", "-p", dest="ports", default="1-65535", help="Port range to scan, default is 1-65535 (all ports)")
 		self.parser.add_argument("--threads", "-t", default=200,  type=int, help="Number of threads that will be used.")
-		self.parser.add_argument("--no-ping", "-n",  dest="checkping", help="Scan for ports without actually testing if the host is up or not.")
+		self.parser.add_argument("--no-ping", "-n",  dest="checkping", default=False , help="Scan for ports without actually testing if the host is up or not.", action="store_true")
 		self.parser.add_argument("--verbose", "-v", help="Verbose output.", action="store_true")
 		self.parser.add_argument("--detailed", "-d", help="Detailed output. Displaying more information about each service", action="store_true")
 	def get_args(self):
@@ -231,7 +236,7 @@ if __name__ == "__main__":
 	ports, 	tPorts = setPorts(port_range)
 
 	## Checking if host is up:
-	if not checkHostStatus(host):
+	if not checkHostStatus(host) and not checkPing:
 		print(f"[{RED}-{RESET}] {host} seems to be down. Maybe the ICMP Packet sending failed. Try again using this script or just simply add -n/--no-ping flag")
 		exit()
 
